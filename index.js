@@ -1,4 +1,5 @@
 const fs = require('fs');
+const path = require('path');
 const FileHound = require('filehound');
 
 const pluginName = 'WebpackPermissionsPlugin';
@@ -19,19 +20,23 @@ function PermissionsOutputPlugin(options) {
 PermissionsOutputPlugin.prototype.apply = function (compiler) {
   const changeFilePermissions = () => {
     const logger =
-      compiler.getInfrastructureLogger &&
-      compiler.getInfrastructureLogger(pluginName);
+        compiler.getInfrastructureLogger &&
+        compiler.getInfrastructureLogger(pluginName);
 
     if (this.options.buildFolders) {
       for (const dir of this.options.buildFolders) {
-        const path = dir.path || dir;
-        if (!fs.existsSync(path)) {
-          warn(logger, path);
-          return;
+        let dirPath = dir.path || dir;
+
+        if (!fs.existsSync(dirPath)) {
+          dirPath = path.join(compiler.outputPath, dirPath);
+          if (!fs.existsSync(dirPath)) {
+            warn(logger, dirPath);
+            return;
+          }
         }
 
-        const dirs = FileHound.create().path(path).directory().findSync();
-        const files = FileHound.create().path(path).findSync();
+        const dirs = FileHound.create().path(dirPath).directory().findSync();
+        const files = FileHound.create().path(dirPath).findSync();
         for (const di of dirs) {
           if (fs.existsSync(di)) {
             fs.chmodSync(di, dir.dirMode || 0o644);
@@ -55,9 +60,9 @@ PermissionsOutputPlugin.prototype.apply = function (compiler) {
   };
 
   const webpackTap =
-    compiler.hooks &&
-    compiler.hooks.done &&
-    compiler.hooks.done.tap.bind(compiler.hooks.done);
+      compiler.hooks &&
+      compiler.hooks.done &&
+      compiler.hooks.done.tap.bind(compiler.hooks.done);
 
   if (webpackTap) {
     webpackTap(pluginName, changeFilePermissions);
